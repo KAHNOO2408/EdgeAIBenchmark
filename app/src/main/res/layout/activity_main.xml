@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:layoutDirection="rtl">
+
+    <androidx.camera.view.PreviewView
+        android:id="@+id/viewFinder"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- مورد ۸: انتخاب سخت‌افزار پردازشگر -->
+    <RadioGroup
+        android:id="@+id/groupAccelerator"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="#B3000000"
+        android:checkedButton="@+id/radioCpu"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="8dp">
+
+        <RadioButton
+            android:id="@+id/radioCpu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:buttonTint="#00E676"
+            android:text="CPU"
+            android:textColor="#FFFFFF" />
+
+        <RadioButton
+            android:id="@+id/radioGpu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:buttonTint="#00E676"
+            android:text="GPU"
+            android:textColor="#FFFFFF" />
+
+        <RadioButton
+            android:id="@+id/radioNnapi"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:buttonTint="#00E676"
+            android:text="NNAPI"
+            android:textColor="#FFFFFF" />
+    </RadioGroup>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="#B3000000"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/txtHardware"
+            style="@style/Metric"
+            android:text="در حال بارگذاری مدل…"
+            android:textColor="#FFEB3B" />
+
+        <TextView
+            android:id="@+id/txtPrediction"
+            style="@style/Metric"
+            android:textColor="#80D8FF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txtFps"
+            style="@style/Metric"
+            android:textColor="#00E676"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txtInference"
+            style="@style/Metric"
+            android:fontFamily="monospace" />
+
+        <TextView
+            android:id="@+id/txtSystem"
+            style="@style/Metric"
+            android:textColor="#BDBDBD" />
+
+        <TextView
+            android:id="@+id/txtStatus"
+            style="@style/Metric"
+            android:textColor="#FFAB40" />
+
+        <Button
+            android:id="@+id/btnRecord"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="شروع بنچمارک (۳۰۰ فریم) و ذخیره CSV" />
+
+        <Button
+            android:id="@+id/btnContention"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="حالت رقابت منابع (پنل شناور روی بازی)" />
+    </LinearLayout>
+</FrameLayout>
