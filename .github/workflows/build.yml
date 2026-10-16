@@ -18,19 +18,9 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      # اگر مدل در assets نباشد، همین‌جا از روی yolov8n.pt ساخته می‌شود
-      - name: Export YOLOv8n to TFLite (if missing)
-        run: |
-          if [ ! -f app/src/main/assets/yolov8n_float16.tflite ]; then
-            python -m pip install --quiet ultralytics
-            yolo export model=yolov8n.pt format=tflite imgsz=640
-            cp yolov8n_saved_model/yolov8n_float16.tflite app/src/main/assets/
-          fi
-          ls -la app/src/main/assets
+      # مدل yolov8n.tflite در خود ریپو است (app/src/main/assets)
+      - name: Check model
+        run: ls -la app/src/main/assets && test -f app/src/main/assets/yolov8n.tflite
 
       - uses: gradle/actions/setup-gradle@v4
         with:

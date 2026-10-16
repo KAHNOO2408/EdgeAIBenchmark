@@ -25,7 +25,7 @@ import kotlin.math.roundToInt
 /**
  * آشکارساز YOLOv8 با Interpreter خام TFLite.
  *
- * - ورودی: NHWC به شکل [1, H, W, 3]، RGB نرمال‌شده 0..1 (float32/float16) یا کوانتیزه (uint8/int8)
+ * - ورودی: NHWC [1, H, W, 3] یا NCHW [1, 3, H, W] (اکسپورت جدید LiteRT)، RGB نرمال‌شده 0..1 (float32/float16) یا کوانتیزه (uint8/int8)
  * - خروجی: [1, 4+C, N] (پیش‌فرض اکسپورت Ultralytics) یا [1, N, 4+C] — هر دو پشتیبانی می‌شود
  * - مختصات خروجی چه نرمال (0..1) چه پیکسلی باشد، خودکار تشخیص داده می‌شود
  *
@@ -51,6 +51,7 @@ class YoloDetector(
 
     // ---- ورودی ----
     private val inputType: DataType
+    private val inputNchw: Boolean
     private val inScale: Float
     private val inZeroPoint: Int
     private val inputBuffer: ByteBuffer
@@ -111,12 +112,13 @@ class YoloDetector(
 
         // ---------- ورودی ----------
         val inTensor = interpreter.getInputTensor(0)
-        val inShape = inTensor.shape() // [1, H, W, 3]
-        require(inShape.size == 4 && inShape[3] == 3) {
-            "شکل ورودی پشتیبانی نمی‌شود: ${inShape.contentToString()} (NHWC انتظار می‌رود)"
+        val inShape = inTensor.shape() // [1, H, W, 3] یا [1, 3, H, W]
+        require(inShape.size == 4 && (inShape[3] == 3 || inShape[1] == 3)) {
+            "شکل ورودی پشتیبانی نمی‌شود: ${inShape.contentToString()} (NHWC یا NCHW انتظار می‌رود)"
         }
-        inputHeight = inShape[1]
-        inputWidth = inShape[2]
+        inputNchw = inShape[3] != 3
+        inputHeight = if (inputNchw) inShape[2] else inShape[1]
+        inputWidth = if (inputNchw) inShape[3] else inShape[2]
         inputType = inTensor.dataType()
         inScale = inTensor.quantizationParams().scale
         inZeroPoint = inTensor.quantizationParams().zeroPoint
@@ -215,27 +217,31 @@ class YoloDetector(
         letterboxCanvas.drawBitmap(src, null, dstRect, drawPaint)
         letterboxBitmap.getPixels(pixels, 0, inputWidth, 0, 0, inputWidth, inputHeight)
 
+        // ابتدا مقادیر 0..1 را در inputFloats با چیدمان مدل (NHWC یا NCHW) می‌چینیم
+        val plane = inputWidth * inputHeight
+        if (inputNchw) {
+            for (i in pixels.indices) {
+                val p = pixels[i]
+                inputFloats[i] = ((p shr 16) and 0xFF) / 255f
+                inputFloats[plane + i] = ((p shr 8) and 0xFF) / 255f
+                inputFloats[2 * plane + i] = (p and 0xFF) / 255f
+            }
+        } else {
+            var j = 0
+            for (p in pixels) {
+                inputFloats[j++] = ((p shr 16) and 0xFF) / 255f
+                inputFloats[j++] = ((p shr 8) and 0xFF) / 255f
+                inputFloats[j++] = (p and 0xFF) / 255f
+            }
+        }
+
         inputBuffer.rewind()
         when (inputType) {
-            DataType.FLOAT32 -> {
-                var j = 0
-                for (p in pixels) {
-                    inputFloats[j++] = ((p shr 16) and 0xFF) / 255f
-                    inputFloats[j++] = ((p shr 8) and 0xFF) / 255f
-                    inputFloats[j++] = (p and 0xFF) / 255f
-                }
-                inputBuffer.asFloatBuffer().put(inputFloats)
+            DataType.FLOAT32 -> inputBuffer.asFloatBuffer().put(inputFloats)
+            DataType.UINT8 -> for (v in inputFloats) {
+                inputBuffer.put((v * 255f).roundToInt().toByte())
             }
-            DataType.UINT8 -> for (p in pixels) {
-                inputBuffer.put(((p shr 16) and 0xFF).toByte())
-                inputBuffer.put(((p shr 8) and 0xFF).toByte())
-                inputBuffer.put((p and 0xFF).toByte())
-            }
-            DataType.INT8 -> for (p in pixels) {
-                inputBuffer.put(quantizeInt8(((p shr 16) and 0xFF) / 255f))
-                inputBuffer.put(quantizeInt8(((p shr 8) and 0xFF) / 255f))
-                inputBuffer.put(quantizeInt8((p and 0xFF) / 255f))
-            }
+            DataType.INT8 -> for (v in inputFloats) inputBuffer.put(quantizeInt8(v))
             else -> error("نوع ورودی پشتیبانی نمی‌شود: $inputType")
         }
         inputBuffer.rewind()

@@ -17,7 +17,7 @@ YoloDetector/
       ├─ AndroidManifest.xml
       ├─ assets/
       │  ├─ labels.txt                    ← ۸۰ کلاس COCO
-      │  └─ yolov8n_float16.tflite        ← خودتان اضافه کنید (پایین را ببینید)
+      │  └─ yolov8n.tflite                ← در ریپو هست (LiteRT، ورودی NCHW)
       ├─ res/layout/activity_main.xml
       └─ java/com/aspar/yolodetector/
          ├─ MainActivity.kt              ← مجوزها، شروع/توقف اسکن، گالری، نمایش آمار
@@ -35,7 +35,7 @@ YoloDetector/
 ```bash
 pip install ultralytics
 yolo export model=yolov8n.pt format=tflite imgsz=640
-cp yolov8n_saved_model/yolov8n_float16.tflite app/src/main/assets/
+cp yolov8n.tflite app/src/main/assets/   # نسخه‌های جدید ultralytics: pip install litert-torch
 ```
 
 - برای سرعت بیشتر می‌توانید `imgsz=320` بدهید؛ اندازه‌ی ورودی از خود مدل خوانده می‌شود.

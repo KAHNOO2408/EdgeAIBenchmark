@@ -335,8 +335,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-        /** خروجی `yolo export model=yolov8n.pt format=tflite` — نسخه‌ی float32 یا float16 */
-        const val MODEL_FILE = "yolov8n_float16.tflite"
+        /** خروجی `yolo export model=yolov8n.pt format=tflite` (LiteRT، ورودی NCHW float32) */
+        const val MODEL_FILE = "yolov8n.tflite"
         const val LABELS_FILE = "labels.txt"
         private const val STILL_RUNS = 20
     }
