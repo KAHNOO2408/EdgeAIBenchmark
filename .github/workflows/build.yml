@@ -22,8 +22,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - uses: android-actions/setup-android@v3
-
       # اگر مدل در assets نباشد، همین‌جا از روی yolov8n.pt ساخته می‌شود
       - name: Export YOLOv8n to TFLite (if missing)
         run: |
