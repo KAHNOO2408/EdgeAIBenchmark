@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "EdgeAIBenchmark"
 include(":app")
+include(":yolodetector")

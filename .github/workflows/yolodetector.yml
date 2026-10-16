@@ -1,0 +1,92 @@
+name: Build YoloDetector APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "yolodetector/**"
+      - ".github/workflows/yolodetector.yml"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # برای Release «yolodetector-latest»
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # اگر مدل خودتان را در yolodetector/src/main/assets/yolov8n.tflite بگذارید، export رد می‌شود
+      - name: Check for committed model
+        id: model
+        run: |
+          if [ -f yolodetector/src/main/assets/yolov8n.tflite ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cache exported model
+        if: steps.model.outputs.present == 'false'
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/yolo-out
+          key: yolov8n-tflite-640-v1
+
+      - uses: actions/setup-python@v5
+        if: steps.model.outputs.present == 'false' && steps.cache.outputs.cache-hit != 'true'
+        with:
+          python-version: "3.11"
+
+      # export رسمی اولترالیتیکس: yolov8n روی COCO → TFLite float32 با ورودی 640
+      - name: Export YOLOv8n to TFLite
+        if: steps.model.outputs.present == 'false' && steps.cache.outputs.cache-hit != 'true'
+        run: |
+          pip install --quiet ultralytics
+          mkdir -p /tmp/yolo-out && cd /tmp/yolo-out
+          yolo export model=yolov8n.pt format=tflite imgsz=640
+          cp "$(find . -name '*float32.tflite' | head -1)" yolov8n.tflite
+          python -c "from ultralytics import YOLO; n=YOLO('yolov8n.pt').names; open('labels.txt','w').write('\n'.join(n[i] for i in range(len(n))))"
+          ls -la /tmp/yolo-out
+
+      - name: Copy model into assets
+        if: steps.model.outputs.present == 'false'
+        run: |
+          cp /tmp/yolo-out/yolov8n.tflite yolodetector/src/main/assets/
+          cp /tmp/yolo-out/labels.txt yolodetector/src/main/assets/
+          ls -la yolodetector/src/main/assets
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build debug APK
+        run: gradle :yolodetector:assembleDebug --stacktrace --no-daemon
+
+      - name: Rename APK
+        run: cp yolodetector/build/outputs/apk/debug/yolodetector-debug.apk YoloDetector.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YoloDetector-apk
+          path: YoloDetector.apk
+
+      - name: Publish to "yolodetector-latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete yolodetector-latest --yes --cleanup-tag || true
+          gh release create yolodetector-latest YoloDetector.apk \
+            --title "YoloDetector (${GITHUB_SHA::7})" \
+            --notes "ساخته‌شده خودکار از commit ${GITHUB_SHA::7}" \
+            --target "$GITHUB_SHA" \
+            --latest=false
