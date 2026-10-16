@@ -48,8 +48,18 @@ data class AimConfig(
     /** هموارسازی نمایی مختصات هدف بین فریم‌ها: 1 = بدون هموارسازی */
     val smoothing: Float = 0.5f,
 
+    // ---- حرکت شبیه دست ----
+    /**
+     * true: انگشت روی صفحه می‌ماند و با مسیر بزیه + سرعت minimum-jerk + زمان فیتس (۱۱۰..۵۲۰ms)
+     * به‌طور پیوسته هدایت می‌شود ([GestureAccessibilityService.steerTowards]).
+     * false: رفتار قدیمی — هر بار یک swipe خطی کوتاه با [gestureDurationMs].
+     */
+    val humanLike: Boolean = true,
+    /** حاشیه‌ی امن از لبه‌ی صفحه برای انگشت پیوسته؛ بیرون از آن انگشت برداشته و از origin دوباره گرفته می‌شود */
+    val edgeMarginPx: Float = 48f,
+
     // ---- زمان‌بندی (Throttling) ----
-    /** مدت هر ژست؛ بیشتر = نرم‌تر ولی کندتر */
+    /** مدت هر ژست در حالت خطی؛ بیشتر = نرم‌تر ولی کندتر */
     val gestureDurationMs: Long = 60L,
     /** حداقل فاصله‌ی شروع دو ژست پشت‌سرهم */
     val intervalMs: Long = 120L,
@@ -93,6 +103,12 @@ class AimController(
     fun reset() {
         smoothX = Float.NaN; smoothY = Float.NaN
         throttle.reset()
+        releaseFinger()
+    }
+
+    /** برداشتن نرم انگشت پیوسته (روی Main). */
+    private fun releaseFinger() {
+        mainHandler.post { GestureAccessibilityService.instance?.releaseFinger() }
     }
 
     fun onFrame(result: DetectionResult, screenW: Int, screenH: Int): AimState {
@@ -115,8 +131,9 @@ class AimController(
         )
 
         if (target == null) {
-            if (now - lastSeenMs > cfg.lostTargetResetMs) {
+            if (now - lastSeenMs > cfg.lostTargetResetMs && !smoothX.isNaN()) {
                 smoothX = Float.NaN; smoothY = Float.NaN
+                if (cfg.humanLike) releaseFinger()
             }
             return state(null, crosshair, false, service != null)
         }
@@ -158,6 +175,18 @@ class AimController(
             (screenW * cfg.originX).coerceIn(0f, maxX),
             (screenH * cfg.originY).coerceIn(0f, maxY)
         )
+
+        if (cfg.humanLike) {
+            // نرخ ارسال با throttle کنترل می‌شود؛ ولی قفل in-flight لازم نیست چون
+            // سرویس خودش هدف تازه را بعد از تکه‌ی جاری ادامه می‌دهد
+            throttle.release()
+            val m = cfg.edgeMarginPx
+            val bounds = android.graphics.RectF(m, m, screenW - m, screenH - m)
+            val delta = PointF(dx, dy)
+            mainHandler.post { service.steerTowards(from, delta, bounds) }
+            return state(aim, crosshair, true, true)
+        }
+
         val to = PointF((from.x + dx).coerceIn(0f, maxX), (from.y + dy).coerceIn(0f, maxY))
 
         if (hypot(to.x - from.x, to.y - from.y) < 1f) { // به لبه‌ی صفحه چسبیده

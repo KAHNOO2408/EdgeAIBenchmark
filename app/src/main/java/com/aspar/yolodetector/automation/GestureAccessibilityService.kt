@@ -37,7 +37,183 @@ class GestureAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
-    override fun onInterrupt() = Unit
+    override fun onInterrupt() = resetStroke()
+
+    // =====================================================================
+    // حرکت نرم شبیه دست (HumanMotion + continueStroke)
+    // =====================================================================
+
+    /** پارامترهای مسیر و سرعت؛ از هر رشته‌ای قابل تغییر */
+    @Volatile var motionConfig = HumanMotion.Config()
+
+    // ---- وضعیت stroke جاری (فقط Main) ----
+    private var activeStroke: GestureDescription.StrokeDescription? = null
+    private var fingerPos: PointF? = null
+    private val chunkQueue = ArrayDeque<MotionChunk>()
+    private var chunkInFlight = false
+    private var liftAfterQueue = false
+    private var pendingTarget: PointF? = null
+    private var regrip: Triple<PointF, PointF, android.graphics.RectF>? = null   // (origin, delta, bounds) برای گرفتن دوباره بعد از برداشتن انگشت
+    private var strokeDone: ((Boolean) -> Unit)? = null
+
+    /** آیا انگشت مجازی الان روی صفحه است؟ */
+    val isFingerDown: Boolean get() = activeStroke != null || chunkInFlight
+
+    /**
+     * یک کشیدن کامل و مستقل با مسیر بزیه + سرعت minimum-jerk + زمان فیتس.
+     * اگر stroke دیگری در جریان باشد false برمی‌گرداند.
+     */
+    fun humanSwipe(from: PointF, to: PointF, onDone: (completed: Boolean) -> Unit): Boolean {
+        if (isFingerDown) return false
+        fingerPos = PointF(from.x, from.y)
+        strokeDone = onDone
+        chunkQueue.addAll(HumanMotion.plan(from, to, null, motionConfig).chunks)
+        liftAfterQueue = true
+        pump()
+        return true
+    }
+
+    /**
+     * هدایت پیوسته‌ی دید: انگشت روی صفحه می‌ماند و به اندازه‌ی [delta] جابه‌جا می‌شود.
+     *  - اگر انگشت بالاست، از [origin] پایین می‌آید.
+     *  - اگر وسط حرکت هدف جدید برسد، بعد از تکه‌ی جاری از همان جای انگشت به مقصد جدید می‌رود
+     *    (بدون برداشتن انگشت و بدون پرش).
+     *  - اگر مقصد از [bounds] بیرون بزند، انگشت نرم برداشته شده و از [origin] دوباره گرفته می‌شود.
+     */
+    fun steerTowards(origin: PointF, delta: PointF, bounds: android.graphics.RectF) {
+        val from = fingerPos ?: PointF(origin.x, origin.y)
+        val to = PointF(from.x + delta.x, from.y + delta.y)
+
+        if (!bounds.contains(to.x, to.y)) {
+            if (isFingerDown) {
+                // اول انگشت را همین‌جا بردار، بعد از origin دوباره شروع کن
+                regrip = Triple(PointF(origin.x, origin.y), PointF(delta.x, delta.y), android.graphics.RectF(bounds))
+                pendingTarget = null
+                chunkQueue.clear()
+                liftAfterQueue = true
+                if (!chunkInFlight) queueLift()
+                pump()
+                return
+            }
+            // انگشت بالاست: از origin شروع کن و مقصد را داخل محدوده نگه دار
+            to.x = (origin.x + delta.x).coerceIn(bounds.left, bounds.right)
+            to.y = (origin.y + delta.y).coerceIn(bounds.top, bounds.bottom)
+            fingerPos = PointF(origin.x, origin.y)
+            chunkQueue.addAll(HumanMotion.plan(fingerPos!!, to, null, motionConfig).chunks)
+            liftAfterQueue = false
+            pump()
+            return
+        }
+
+        if (chunkInFlight) {
+            pendingTarget = to
+            liftAfterQueue = false
+            return
+        }
+        fingerPos = from
+        chunkQueue.clear()
+        chunkQueue.addAll(HumanMotion.plan(from, to, null, motionConfig).chunks)
+        liftAfterQueue = false
+        pump()
+    }
+
+    /** برداشتن نرم انگشت (مثلاً وقتی هدف گم شد یا اتوماسیون خاموش شد). */
+    fun releaseFinger() {
+        regrip = null
+        pendingTarget = null
+        if (!isFingerDown) return
+        chunkQueue.clear()
+        liftAfterQueue = true
+        if (!chunkInFlight) {
+            queueLift()
+            pump()
+        }
+    }
+
+    private fun queueLift() {
+        val p = fingerPos ?: return
+        chunkQueue.add(MotionChunk(listOf(PointF(p.x, p.y), PointF(p.x + 0.5f, p.y)), motionConfig.frameMs))
+    }
+
+    private fun pump() {
+        if (chunkInFlight) return
+
+        pendingTarget?.let { t ->
+            pendingTarget = null
+            fingerPos?.let { from ->
+                chunkQueue.clear()
+                chunkQueue.addAll(HumanMotion.plan(from, t, null, motionConfig).chunks)
+            }
+        }
+
+        val chunk = chunkQueue.removeFirstOrNull()
+        if (chunk == null) {
+            if (liftAfterQueue && activeStroke != null && fingerPos != null) {
+                queueLift(); pump()
+            } else if (activeStroke == null || fingerPos == null) {
+                resetStroke(); finishStroke(true)
+            }
+            return
+        }
+
+        val isLast = chunkQueue.isEmpty() && pendingTarget == null && liftAfterQueue
+        val path = Path().apply {
+            moveTo(chunk.points.first().x, chunk.points.first().y)
+            for (i in 1 until chunk.points.size) lineTo(chunk.points[i].x, chunk.points[i].y)
+        }
+        val duration = chunk.durationMs.coerceAtLeast(1L)
+        val stroke = try {
+            activeStroke?.continueStroke(path, 0L, duration, !isLast)
+                ?: GestureDescription.StrokeDescription(path, 0L, duration, !isLast)
+        } catch (t: IllegalArgumentException) {
+            Log.w(TAG, "invalid stroke", t)
+            resetStroke(); finishStroke(false)
+            return
+        }
+
+        chunkInFlight = true
+        activeStroke = stroke
+        val ok = try {
+            dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(),
+                object : GestureResultCallback() {
+                    override fun onCompleted(gestureDescription: GestureDescription?) {
+                        chunkInFlight = false
+                        val end = chunk.points.last()
+                        fingerPos = PointF(end.x, end.y)
+                        if (isLast) {
+                            activeStroke = null
+                            fingerPos = null
+                            finishStroke(true)
+                        } else pump()
+                    }
+
+                    override fun onCancelled(gestureDescription: GestureDescription?) {
+                        // لمس واقعی کاربر یا سیستم stroke را قطع کرد
+                        resetStroke(); finishStroke(false)
+                    }
+                }, null)
+        } catch (t: IllegalArgumentException) {
+            Log.w(TAG, "dispatch rejected", t); false
+        }
+        if (!ok) { resetStroke(); finishStroke(false) }
+    }
+
+    private fun finishStroke(completed: Boolean) {
+        strokeDone?.let { strokeDone = null; it(completed) }
+        regrip?.let { (origin, delta, bounds) ->
+            regrip = null
+            steerTowards(origin, delta, bounds)
+        }
+    }
+
+    private fun resetStroke() {
+        chunkQueue.clear()
+        pendingTarget = null
+        activeStroke = null
+        chunkInFlight = false
+        fingerPos = null
+        liftAfterQueue = false
+    }
 
     /**
      * کشیدن روان از [from] به [to] در [durationMs] میلی‌ثانیه.
