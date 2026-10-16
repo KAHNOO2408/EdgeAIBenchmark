@@ -1,6 +1,7 @@
 package com.aspar.yolodetector.capture
 
 import android.content.Context
+import android.graphics.PointF
 import android.graphics.PixelFormat
 import android.hardware.input.InputManager
 import android.os.Build
@@ -75,8 +76,14 @@ class ScreenOverlay(private val context: Context) {
         view.invalidate()
     }
 
-    fun update(result: DetectionResult?, hud: String?) {
-        if (attached) view.setResult(result, hud)
+    fun update(
+        result: DetectionResult?, hud: String?,
+        aimTarget: PointF? = null, crosshair: PointF? = null,
+    ) {
+        if (!attached) return
+        view.aimTarget = aimTarget
+        view.crosshair = crosshair
+        view.setResult(result, hud)
     }
 
     fun hide() {

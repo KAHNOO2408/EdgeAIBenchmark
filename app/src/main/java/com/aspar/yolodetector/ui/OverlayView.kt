@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PointF
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
@@ -35,6 +36,10 @@ class OverlayView @JvmOverloads constructor(
     var screenWidth = 0
     var screenHeight = 0
 
+    /** فقط SCREEN: نقطه‌ی هدف و crosshair اتوماسیون، به پیکسل صفحه */
+    var aimTarget: PointF? = null
+    var crosshair: PointF? = null
+
     private var result: DetectionResult? = null
     private var hudText: String? = null
     private val screenLoc = IntArray(2)
@@ -48,6 +53,11 @@ class OverlayView @JvmOverloads constructor(
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         textSize = 13f * density
+    }
+    private val aimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 2f * density
+        color = 0xFFFF2D55.toInt()
     }
     private val hudBgPaint = Paint().apply { color = 0x99000000.toInt() }
     private val rect = RectF()
@@ -115,6 +125,20 @@ class OverlayView @JvmOverloads constructor(
             labelRect.set(rect.left, top, rect.left + tw + 2 * pad, top + textH + 2 * pad)
             canvas.drawRect(labelRect, labelBgPaint)
             canvas.drawText(text, labelRect.left + pad, labelRect.top + pad - fm.ascent, textPaint)
+        }
+
+        if (fitMode == FitMode.SCREEN) {
+            val ox = -screenLoc[0].toFloat()
+            val oy = -screenLoc[1].toFloat()
+            val c = 10f * density
+            crosshair?.let { ch ->
+                canvas.drawLine(ch.x + ox - c, ch.y + oy, ch.x + ox + c, ch.y + oy, aimPaint)
+                canvas.drawLine(ch.x + ox, ch.y + oy - c, ch.x + ox, ch.y + oy + c, aimPaint)
+                aimTarget?.let { t ->
+                    canvas.drawCircle(t.x + ox, t.y + oy, 8f * density, aimPaint)
+                    canvas.drawLine(ch.x + ox, ch.y + oy, t.x + ox, t.y + oy, aimPaint)
+                }
+            }
         }
 
         hudText?.let { hud ->

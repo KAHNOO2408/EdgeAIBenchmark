@@ -21,4 +21,9 @@
     <string name="scan_channel">اسکن صفحه</string>
     <string name="scan_notif_title">YOLO در حال اسکن صفحه</string>
     <string name="scan_notif_text">برای توقف، «توقف اسکن» را بزنید</string>
+
+    <string name="automation">حرکت خودکار</string>
+    <string name="a11y_label">YOLO اتوماسیون لمسی</string>
+    <string name="a11y_description">ژست کشیدن را بر اساس مختصات اشیاء شناسایی‌شده روی صفحه شبیه‌سازی می‌کند. محتوای صفحه را نمی‌خواند.</string>
+    <string name="a11y_enable_hint">سرویس «YOLO اتوماسیون لمسی» را در دسترس‌پذیری روشن کنید و برگردید</string>
 </resources>

@@ -35,6 +35,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import com.aspar.yolodetector.MainActivity
 import com.aspar.yolodetector.R
+import com.aspar.yolodetector.automation.AimController
+import com.aspar.yolodetector.automation.AimState
 import com.aspar.yolodetector.ml.YoloDetector
 import com.aspar.yolodetector.util.FpsCounter
 import java.nio.ByteBuffer
@@ -78,6 +80,12 @@ class ScreenCaptureService : Service() {
     private var frameCanvas: Canvas? = null
     private var staging: ByteBuffer? = null
     private val cropRect = Rect()
+    private val aimController = AimController(mainHandler)
+    private var automationWasOn = false
+
+    /** اندازه‌ی واقعی صفحه برای تبدیل مختصات؛ از Main نوشته و از mlThread خوانده می‌شود */
+    @Volatile private var screenW = 0
+    @Volatile private var screenH = 0
 
     private val projectionCallback = object : MediaProjection.Callback() {
         // کاربر از نوار وضعیت/چیپ سیستم اشتراک صفحه را قطع کرد، یا پروجکشن دیگری شروع شد
@@ -140,10 +148,11 @@ class ScreenCaptureService : Service() {
         mp.registerCallback(projectionCallback, mainHandler)
         projection = mp
 
+        val real = realScreenSize()
+        screenW = real.x; screenH = real.y
         val ov = ScreenOverlay(uiContext)
         if (ov.show()) {
-            val s = realScreenSize()
-            ov.setScreenSize(s.x, s.y)
+            ov.setScreenSize(real.x, real.y)
             overlay = ov
         } else {
             ScanBus.publishMessage(getString(R.string.overlay_missing_running))
@@ -211,6 +220,7 @@ class ScreenCaptureService : Service() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         val s = realScreenSize()
+        screenW = s.x; screenH = s.y
         overlay?.setScreenSize(s.x, s.y)
         mlHandler.post { resizeCaptureIfNeeded() }
     }
@@ -256,12 +266,25 @@ class ScreenCaptureService : Service() {
 
         ScanBus.publishFrame(ScanFrame(result, fps, d.delegateName, d.inputWidth, d.inputHeight))
 
+        // ---- اتوماسیون لمسی ----
+        val automationOn = ScanSettings.automationEnabled && screenW > 0
+        if (automationOn != automationWasOn) {
+            aimController.reset()
+            automationWasOn = automationOn
+        }
+        val aim: AimState? =
+            if (automationOn) aimController.onFrame(result, screenW, screenH) else null
+
         overlay?.let { ov ->
-            val hud = String.format(
+            var hud = String.format(
                 Locale.US, "%.1f FPS | %.0f ms | %s | %d",
                 fps, result.totalMs, d.delegateName, result.detections.size
             )
-            mainHandler.post { ov.update(result, hud) }
+            if (aim != null) {
+                hud += if (!aim.serviceConnected) " | AUTO: سرویس خاموش"
+                else String.format(Locale.US, " | AUTO %d/%d", aim.sent, aim.dropped)
+            }
+            mainHandler.post { ov.update(result, hud, aim?.target, aim?.crosshair) }
         }
     }
 

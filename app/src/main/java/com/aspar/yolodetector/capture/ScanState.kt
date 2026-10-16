@@ -15,6 +15,9 @@ object ScanSettings {
     @Volatile var vehiclesOnly = false
     @Volatile var useGpu = true
 
+    /** اتوماسیون لمسی بر اساس هدف (نیاز به GestureAccessibilityService فعال) */
+    @Volatile var automationEnabled = false
+
     fun classFilter(): Set<Int>? = if (vehiclesOnly) CocoClasses.VEHICLES else null
 }
 

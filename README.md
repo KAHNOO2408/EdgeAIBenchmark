@@ -79,3 +79,20 @@ MediaProjection ─► VirtualDisplay (ضلع بلند 960) ─► ImageReader R
 - کادرهای خود Overlay هم در ضبط صفحه دیده می‌شوند (API عمومی برای حذف پنجره‌ی خود برنامه از
   MediaProjection وجود ندارد)؛ چون خطوط نازک‌اند عملاً مشکلی ایجاد نمی‌کنند.
 - VirtualDisplay فقط وقتی محتوای صفحه عوض شود فریم می‌دهد؛ صفحه‌ی ثابت = FPS نزدیک صفر.
+
+## اتوماسیون لمسی (Gesture & Drag)
+
+```
+YoloDetector.detect ─► AimController.onFrame (mlThread)
+   TargetMath.selectTarget   ← کلاس/امتیاز، CENTER یا HEAD، تبدیل فریم→پیکسل صفحه، قفل روی هدف قبلی
+   EMA smoothing → dead zone → GestureThrottle (interval + یک ژست در جریان + watchdog)
+   گام = gain × (هدف − crosshair)، محدود به maxStepPx
+          └─► Main: GestureAccessibilityService.swipe(origin → origin+گام) با dispatchGesture
+```
+
+- فایل‌ها: `automation/GestureAccessibilityService.kt`، `TargetMath.kt`، `GestureThrottle.kt`، `AimController.kt`
+- همه‌ی پارامترها در `AimConfig` است (پیش‌فرض: کلاس person، نقطه‌ی HEAD با headRatio=0.12،
+  gain=0.6، deadZone=24px، maxStep=350px، ژست 60ms، فاصله‌ی حداقل 120ms).
+- فعال‌سازی: سوئیچ «حرکت خودکار» ← روشن کردن سرویس در «تنظیمات > دسترس‌پذیری».
+  روی اندروید ۱۳+ برای APK نصب‌شده خارج از Play: «اطلاعات برنامه ← ⋮ ← Allow restricted settings».
+- روی Overlay، crosshair و نقطه‌ی هدف قرمز رسم می‌شوند و HUD تعداد ژست‌های ارسالی/ردشده را نشان می‌دهد.

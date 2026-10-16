@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.aspar.yolodetector.automation.GestureAccessibilityService
 import com.aspar.yolodetector.capture.ScanBus
 import com.aspar.yolodetector.capture.ScanSettings
 import com.aspar.yolodetector.capture.ScreenCaptureService
@@ -106,6 +107,7 @@ class MainActivity : AppCompatActivity() {
         confValue.text = String.format(Locale.US, "%.2f", ScanSettings.confThreshold)
         switchGpu.isChecked = ScanSettings.useGpu
         switchVehicles.isChecked = ScanSettings.vehiclesOnly
+        switchAuto.isChecked = ScanSettings.automationEnabled
 
         confSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
@@ -130,6 +132,16 @@ class MainActivity : AppCompatActivity() {
         switchVehicles.setOnCheckedChangeListener { _, checked ->
             ScanSettings.vehiclesOnly = checked
             if (mode == Mode.STILL) mlExecutor.execute { runStillBenchmark() }
+        }
+
+        switchAuto.setOnCheckedChangeListener { sw, checked ->
+            if (checked && !GestureAccessibilityService.isEnabled(this@MainActivity)) {
+                sw.isChecked = false
+                toast(R.string.a11y_enable_hint)
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                return@setOnCheckedChangeListener
+            }
+            ScanSettings.automationEnabled = checked
         }
 
         btnScreen.setOnClickListener {
@@ -320,6 +332,14 @@ class MainActivity : AppCompatActivity() {
             header, fps, r.inferenceMs, r.preprocessMs, r.postprocessMs, delegate,
             inW, inH, r.imageWidth, r.imageHeight, r.detections.size
         )
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // اگر کاربر سرویس را در تنظیمات خاموش کرد، سوئیچ را هم خاموش کن
+        if (binding.switchAuto.isChecked && !GestureAccessibilityService.isEnabled(this)) {
+            binding.switchAuto.isChecked = false
+        }
     }
 
     private fun toast(res: Int) = Toast.makeText(this, res, Toast.LENGTH_LONG).show()

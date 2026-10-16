@@ -91,6 +91,13 @@
                 android:textColor="#FFFFFF" />
         </LinearLayout>
 
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchAuto"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/automation"
+            android:textColor="#FFFFFF" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
