@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.YoloDetector" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">#FF00C2A8</item>
+        <item name="android:statusBarColor">#FF000000</item>
+        <item name="android:navigationBarColor">#FF000000</item>
+        <item name="android:windowBackground">#FF000000</item>
+    </style>
+</resources>

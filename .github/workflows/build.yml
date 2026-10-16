@@ -1,0 +1,61 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # برای Release با APK
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: android-actions/setup-android@v3
+
+      # اگر مدل در assets نباشد، همین‌جا از روی yolov8n.pt ساخته می‌شود
+      - name: Export YOLOv8n to TFLite (if missing)
+        run: |
+          if [ ! -f app/src/main/assets/yolov8n_float16.tflite ]; then
+            python -m pip install --quiet ultralytics
+            yolo export model=yolov8n.pt format=tflite imgsz=640
+            cp yolov8n_saved_model/yolov8n_float16.tflite app/src/main/assets/
+          fi
+          ls -la app/src/main/assets
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build debug APK
+        run: gradle assembleDebug --stacktrace --no-daemon
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk YoloDetector.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YoloDetector-apk
+          path: YoloDetector.apk
+
+      # آخرین APK در Release با تگ yolo-latest (دانلود مستقیم از موبایل)
+      - name: Publish to "yolo-latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete yolo-latest --yes --cleanup-tag || true
+          gh release create yolo-latest YoloDetector.apk \
+            --title "YoloDetector — اسکن صفحه (${GITHUB_SHA::7})" \
+            --notes "ساخته‌شده خودکار از commit ${GITHUB_SHA::7} روی برنچ yolo-detector" \
+            --target "$GITHUB_SHA"

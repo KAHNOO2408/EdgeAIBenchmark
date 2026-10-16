@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">YOLO Detector</string>
+    <string name="start_scan">اسکن صفحه</string>
+    <string name="stop_scan">توقف اسکن</string>
+    <string name="gallery">انتخاب عکس</string>
+    <string name="gpu">GPU</string>
+    <string name="vehicles_only">فقط وسایل نقلیه</string>
+    <string name="confidence">آستانه اطمینان</string>
+    <string name="loading_model">در حال بارگذاری مدل…</string>
+
+    <string name="overlay_needed">برای کشیدن کادرها روی برنامه‌های دیگر، مجوز «نمایش روی برنامه‌های دیگر» را بدهید</string>
+    <string name="overlay_denied">مجوز نمایش روی برنامه‌ها داده نشد؛ فقط آمار نمایش داده می‌شود</string>
+    <string name="overlay_missing_running">اسکن در حال اجراست، ولی بدون مجوز Overlay کادری روی صفحه کشیده نمی‌شود</string>
+    <string name="capture_denied">اجازه‌ی ضبط صفحه داده نشد</string>
+    <string name="capture_failed">شروع ضبط صفحه ناموفق بود</string>
+    <string name="scan_started_hint">اسکن شروع شد؛ به برنامه‌ی دلخواه بروید</string>
+    <string name="scan_running">اسکن صفحه در حال اجراست…</string>
+    <string name="scan_stopped">اسکن صفحه متوقف شد</string>
+
+    <string name="scan_channel">اسکن صفحه</string>
+    <string name="scan_notif_title">YOLO در حال اسکن صفحه</string>
+    <string name="scan_notif_text">برای توقف، «توقف اسکن» را بزنید</string>
+</resources>
